@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "werift": "^0.19.6"
+  },
+  "devDependencies": {
+    "standard": "^17.1.0"
+  }
+}
