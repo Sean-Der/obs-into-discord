@@ -1,7 +1,49 @@
 const http = require('http')
+
 const { RTCPeerConnection, RTCRtpCodecParameters } = require('werift')
+const { Client, StageChannel } = require('discord.js-selfbot-v13')
+const { command, streamLivestreamVideo, MediaUdp, getInputMetadata, inputHasAudio, Streamer } = require('@dank074/discord-video-stream')
+
+const config = require('./config.json')
+
+const streamer = new Streamer(new Client())
+streamer.client.login(config.userToken).then(() => {
+  streamer.joinVoice(config.serverIdNumber, config.channelIdNumber).then(() => {
+    streamer.createStream({}).then(udp => {
+      udp.mediaConnection.setSpeaking(true)
+      udp.mediaConnection.setVideoStatus(true)
+
+      // try {
+      //   const res = await streamLivestreamVideo("DIRECT VIDEO URL OR READABLE STREAM HERE", udp);
+
+      //   console.log("Finished playing video " + res);
+      // } catch (e) {
+      //   console.log(e);
+      // } finally {
+      //   udp.mediaConnection.setSpeaking(false);
+      //   udp.mediaConnection.setVideoStatus(false);
+      // }
+
+      // console.log('authed')
+    })
+  })
+})
 
 http.createServer((req, res) => {
+  streamer.client.on('ready', () => {
+    console.log(`--- ${streamer.client.user.tag} is ready ---`)
+  })
+
+  handleWHIPRequest(req, res,
+    audioPacket => {
+      console.log(audioPacket)
+    },
+    videoPacket => {
+      console.log(videoPacket)
+    })
+}).listen(4321)
+
+function handleWHIPRequest (req, res, onAudio, onVideo) {
   if (req.method !== 'POST') {
     res.end()
     return
@@ -46,14 +88,14 @@ http.createServer((req, res) => {
     pc.addTransceiver('video', { direction: 'recvonly' }).onTrack.subscribe(
       (track) =>
         track.onReceiveRtp.subscribe((packet) => {
-        // console.log(packet)
+          onVideo(packet)
         })
     )
 
     pc.addTransceiver('audio', { direction: 'recvonly' }).onTrack.subscribe(
       (track) =>
         track.onReceiveRtp.subscribe((packet) => {
-        // console.log(packet)
+          onAudio(packet)
         })
     )
 
@@ -80,4 +122,4 @@ http.createServer((req, res) => {
       }
     })
   })
-}).listen(4321)
+}
