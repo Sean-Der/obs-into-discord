@@ -15,22 +15,8 @@ http.createServer(async (req, res) => {
 
   const streamer = new Streamer(new Client())
   await streamer.client.login(config.userToken)
-  await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {
-    width: 1280,
-    height: 720,
-    fps: 30,
-    bitrateKbps: 1000,
-    maxBitrateKbps: 2500,
-    videoCodec: 'H264'
-  })
-  const udp = await streamer.createStream({
-    width: 1280,
-    height: 720,
-    fps: 30,
-    bitrateKbps: 1000,
-    maxBitrateKbps: 2500,
-    videoCodec: 'H264'
-  })
+  await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {})
+  const udp = await streamer.createStream({})
 
   udp.mediaConnection.setSpeaking(true)
   udp.mediaConnection.setVideoStatus(true)
