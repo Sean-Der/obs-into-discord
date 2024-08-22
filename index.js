@@ -1,54 +1,59 @@
 const http = require('http')
+const fs = require('node:fs')
+const { Buffer } = require('node:buffer')
 
-const { RTCPeerConnection, RTCRtpCodecParameters } = require('werift')
-const { Client, StageChannel } = require('discord.js-selfbot-v13')
-const { command, streamLivestreamVideo, MediaUdp, getInputMetadata, inputHasAudio, Streamer } = require('@dank074/discord-video-stream')
+const { RTCPeerConnection, RTCRtpCodecParameters, H264RtpPayload } = require('werift')
+const { Client } = require('discord.js-selfbot-v13')
+const { Streamer } = require('@dank074/discord-video-stream')
 
 const config = require('./config.json')
 
-const streamer = new Streamer(new Client())
-streamer.client.login(config.userToken).then(() => {
-  streamer.joinVoice(config.serverIdNumber, config.channelIdNumber).then(() => {
-    streamer.createStream({}).then(udp => {
-      udp.mediaConnection.setSpeaking(true)
-      udp.mediaConnection.setVideoStatus(true)
-
-      // try {
-      //   const res = await streamLivestreamVideo("DIRECT VIDEO URL OR READABLE STREAM HERE", udp);
-
-      //   console.log("Finished playing video " + res);
-      // } catch (e) {
-      //   console.log(e);
-      // } finally {
-      //   udp.mediaConnection.setSpeaking(false);
-      //   udp.mediaConnection.setVideoStatus(false);
-      // }
-
-      // console.log('authed')
-    })
-  })
-})
-
-http.createServer((req, res) => {
-  streamer.client.on('ready', () => {
-    console.log(`--- ${streamer.client.user.tag} is ready ---`)
-  })
-
-  handleWHIPRequest(req, res,
-    audioPacket => {
-      console.log(audioPacket)
-    },
-    videoPacket => {
-      console.log(videoPacket)
-    })
-}).listen(4321)
-
-function handleWHIPRequest (req, res, onAudio, onVideo) {
+http.createServer(async (req, res) => {
   if (req.method !== 'POST') {
     res.end()
     return
   }
 
+  const streamer = new Streamer(new Client())
+  streamer.client.on('ready', () => {
+    console.log(`--- ${streamer.client.user.tag} is ready ---`)
+  })
+
+  await streamer.client.login(config.userToken)
+  await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {
+    width: 1280,
+    height: 720,
+    fps: 30,
+    bitrateKbps: 1000,
+    maxBitrateKbps: 2500,
+    videoCodec: 'H264',
+  })
+  const udp = await streamer.createStream({
+    width: 1280,
+    height: 720,
+    fps: 30,
+    bitrateKbps: 1000,
+    maxBitrateKbps: 2500,
+    videoCodec: 'H264',
+  })
+
+  udp.mediaConnection.setSpeaking(true)
+  udp.mediaConnection.setVideoStatus(false)
+
+  let h264Res = new H264RtpPayload()
+  handleWHIPRequest(req, res,
+    audioPacket => {
+      udp.sendAudioFrame(audioPacket.payload)
+    },
+    videoPacket => {
+      h264Res = H264RtpPayload.deSerialize(videoPacket.payload, h264Res.fragment)
+      if (h264Res.payload !== undefined) {
+        udp.sendVideoFrame(h264Res.payload)
+      }
+    })
+}).listen(4321)
+
+function handleWHIPRequest (req, res, onAudio, onVideo) {
   let body = ''
   req.on('data', chunk => {
     body += chunk
