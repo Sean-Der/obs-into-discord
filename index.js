@@ -1,10 +1,8 @@
 const http = require('http')
-const fs = require('node:fs')
-const { Buffer } = require('node:buffer')
 
 const { RTCPeerConnection, RTCRtpCodecParameters, H264RtpPayload } = require('werift')
 const { Client } = require('discord.js-selfbot-v13')
-const { Streamer } = require('@dank074/discord-video-stream')
+const { Streamer, H264NalSplitter } = require('@dank074/discord-video-stream')
 
 const config = require('./config.json')
 
@@ -15,10 +13,6 @@ http.createServer(async (req, res) => {
   }
 
   const streamer = new Streamer(new Client())
-  streamer.client.on('ready', () => {
-    console.log(`--- ${streamer.client.user.tag} is ready ---`)
-  })
-
   await streamer.client.login(config.userToken)
   await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {
     width: 1280,
@@ -26,7 +20,7 @@ http.createServer(async (req, res) => {
     fps: 30,
     bitrateKbps: 1000,
     maxBitrateKbps: 2500,
-    videoCodec: 'H264',
+    videoCodec: 'H264'
   })
   const udp = await streamer.createStream({
     width: 1280,
@@ -34,26 +28,37 @@ http.createServer(async (req, res) => {
     fps: 30,
     bitrateKbps: 1000,
     maxBitrateKbps: 2500,
-    videoCodec: 'H264',
+    videoCodec: 'H264'
   })
 
   udp.mediaConnection.setSpeaking(true)
-  udp.mediaConnection.setVideoStatus(false)
+  udp.mediaConnection.setVideoStatus(true)
+
+  const nalSplitter = new H264NalSplitter()
+  nalSplitter.on('data', frame => {
+    udp.sendVideoFrame(frame)
+  })
 
   let h264Res = new H264RtpPayload()
   handleWHIPRequest(req, res,
+    connectionState => {
+      if (connectionState === 'disconnected') {
+        streamer.stopStream()
+        streamer.leaveVoice()
+      }
+    },
     audioPacket => {
       udp.sendAudioFrame(audioPacket.payload)
     },
     videoPacket => {
       h264Res = H264RtpPayload.deSerialize(videoPacket.payload, h264Res.fragment)
       if (h264Res.payload !== undefined) {
-        udp.sendVideoFrame(h264Res.payload)
+        nalSplitter._transform(h264Res.payload, null, () => {})
       }
     })
-}).listen(4321)
+}).listen(config.httpPort)
 
-function handleWHIPRequest (req, res, onAudio, onVideo) {
+function handleWHIPRequest (req, res, onConnectionState, onAudio, onVideo) {
   let body = ''
   req.on('data', chunk => {
     body += chunk
@@ -86,9 +91,7 @@ function handleWHIPRequest (req, res, onAudio, onVideo) {
       }
     })
 
-    pc.iceConnectionStateChange.subscribe((v) =>
-      console.log('pc.iceConnectionStateChange', v)
-    )
+    pc.iceConnectionStateChange.subscribe(onConnectionState)
 
     pc.addTransceiver('video', { direction: 'recvonly' }).onTrack.subscribe(
       (track) =>
