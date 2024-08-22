@@ -5,6 +5,7 @@ const { Client } = require('discord.js-selfbot-v13')
 const { Streamer, H264NalSplitter } = require('@dank074/discord-video-stream')
 
 const config = require('./config.json')
+checkConfig()
 
 http.createServer(async (req, res) => {
   if (req.method !== 'POST') {
@@ -130,4 +131,31 @@ function handleWHIPRequest (req, res, onConnectionState, onAudio, onVideo) {
       }
     })
   })
+}
+
+function checkConfig () {
+  const redText = '\x1b[31m'
+  const resetText = '\x1b[0m'
+
+  const startupErrors = []
+  if (config.userToken === '') {
+    startupErrors.push(redText + 'Config is missing userToken' + resetText)
+  }
+  if (config.serverIdNumber === '') {
+    startupErrors.push(redText + 'Config is missing serverIdNumber' + resetText)
+  }
+  if (config.channelIdNumber === '') {
+    startupErrors.push(redText + 'Config is missing channelIdNumber' + resetText)
+  }
+  if (!config.httpPort) {
+    startupErrors.push(redText + 'Config is missing httpPort' + resetText)
+  }
+
+  startupErrors.forEach((e, i) => {
+    console.log(e)
+  })
+
+  if (startupErrors.length !== 0) {
+    process.exit(1)
+  }
 }

@@ -1,5 +1,6 @@
 {
-    "user-token": "",
-    "server-id-number": "",
-    "channel-id-number": ""
+    "userToken": "",
+    "serverIdNumber": "",
+    "channelIdNumber": "",
+    "httpPort": 4321
 }
