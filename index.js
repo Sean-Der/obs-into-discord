@@ -4,18 +4,35 @@ const { RTCPeerConnection, RTCRtpCodecParameters, H264RtpPayload } = require('we
 const { Client } = require('discord.js-selfbot-v13')
 const { Streamer, H264NalSplitter } = require('@dank074/discord-video-stream')
 
+const redText = '\x1b[31m'
+const greenText = '\x1b[32m'
+
 const config = require('./config.json')
 checkConfig()
 
 http.createServer(async (req, res) => {
   if (req.method !== 'POST') {
-    res.end()
-    return
+    return res.end()
   }
 
+  console.log(`${greenText}New WHIP Session`)
+
   const streamer = new Streamer(new Client())
-  await streamer.client.login(config.userToken)
-  await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {})
+
+  try {
+    await streamer.client.login(config.userToken)
+  } catch (err) {
+    console.log(`${redText}Failed to login, check userToken: ${err.toString()}`)
+    return res.end()
+  }
+
+  try {
+    await streamer.joinVoice(config.serverIdNumber, config.channelIdNumber, {})
+  } catch (err) {
+    console.log(`${redText}Failed to joinVoice, check serverIdNumber and channelIdNumber: ${err.toString()}`)
+    return res.end()
+  }
+
   const udp = await streamer.createStream({})
 
   udp.mediaConnection.setSpeaking(true)
@@ -29,6 +46,8 @@ http.createServer(async (req, res) => {
   let h264Res = new H264RtpPayload()
   handleWHIPRequest(req, res,
     connectionState => {
+      console.log(`${greenText}WHIP Session state change ${connectionState}`)
+
       if (connectionState === 'disconnected') {
         streamer.stopStream()
         streamer.leaveVoice()
@@ -43,7 +62,11 @@ http.createServer(async (req, res) => {
         nalSplitter._transform(h264Res.payload, null, () => {})
       }
     })
-}).listen(config.httpPort)
+})
+  .on('error', err => {
+    console.log(`${redText}Failed to start HTTP server: ${err.toString()}`)
+  })
+  .listen(config.httpPort)
 
 function handleWHIPRequest (req, res, onConnectionState, onAudio, onVideo) {
   let body = ''
@@ -120,21 +143,18 @@ function handleWHIPRequest (req, res, onConnectionState, onAudio, onVideo) {
 }
 
 function checkConfig () {
-  const redText = '\x1b[31m'
-  const resetText = '\x1b[0m'
-
   const startupErrors = []
   if (config.userToken === '') {
-    startupErrors.push(redText + 'Config is missing userToken' + resetText)
+    startupErrors.push(`${redText}Config is missing userToken`)
   }
   if (config.serverIdNumber === '') {
-    startupErrors.push(redText + 'Config is missing serverIdNumber' + resetText)
+    startupErrors.push(`${redText}Config is missing serverIdNumber`)
   }
   if (config.channelIdNumber === '') {
-    startupErrors.push(redText + 'Config is missing channelIdNumber' + resetText)
+    startupErrors.push(`${redText}Config is missing channelIdNumber`)
   }
   if (!config.httpPort) {
-    startupErrors.push(redText + 'Config is missing httpPort' + resetText)
+    startupErrors.push(`${redText}Config is missing httpPort`)
   }
 
   startupErrors.forEach((e, i) => {
