@@ -1,3 +1,7 @@
+`obs-into-discord` has been discontinued; use [`utsuru`](https://github.com/VincentVerdynanta/utsuru) instead.
+
+------
+
 # OBS Into Discord
 
 [![License][license-image]][license-url]
